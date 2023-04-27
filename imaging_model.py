@@ -128,3 +128,23 @@ def fast_form_A(
     A = np.array(columns).T
 
     return A
+
+
+# rescales the imaging matrix so that the number of photons detected are the same 
+def fast_form_A_from_photons(
+        desired_photons,  # float with the desired number of photons from each illumination
+        illumination_wavelengths,  # numpy array with the wavelength of each illumination
+        bin_wavelength_range,  # length 2 ordered int tuple with first and last wavelengths detected
+        bin_width,  # int denoting size of each wavelength bin
+        fluorophore_list,  # list of fluorophores in image
+    ):
+    N_ex = illumination_wavelengths.size
+    N_em = (bin_wavelength_range[1] - bin_wavelength_range[0]) // bin_width
+    A = fast_form_A(illumination_wavelengths, np.ones(illumination_wavelengths.shape),
+                    bin_wavelength_range, bin_width, fluorophore_list)
+    row_sums = np.sum(A, axis=1)
+    illumination_sums = row_sums.reshape(N_ex, N_em).sum(axis=1)
+    k = desired_photons / illumination_sums
+    new_A = fast_form_A(illumination_wavelengths, k,
+                    bin_wavelength_range, bin_width, fluorophore_list)
+    return new_A
