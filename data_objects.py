@@ -59,7 +59,7 @@ def load_fluorophore(
         emission_column_name = name + " em"
 
     df[emission_column_name] = normalize(df[emission_column_name])
-    df[excitation_column_name] = normalize(df[excitation_column_name])
+    #df[excitation_column_name] = normalize(df[excitation_column_name])
 
     df_columns = df.rename(
         columns={name + " ex": "excitation", name + " em": "emission"}

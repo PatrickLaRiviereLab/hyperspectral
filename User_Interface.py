@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from data_objects import Fluorophore, get_fluorophore_list
+from data_objects import Fluorophore, get_fluorophore_list, normalize
 from imaging_model import fast_form_A
 from information_matrix import read_qe, fast_form_q_vec, FIM
 
@@ -31,10 +31,11 @@ tab2.write("brightness = {}".format(fluorophore.brightness))
 tab2.header("Fluorophore spectra")
 fig, axs = plt.subplots(1, 1)
 idx = np.arange(*wavelength_range)
+normalized_excitation = normalize(fluorophore.spectra.excitation.copy())
 axs.plot(idx, fluorophore.spectra.emission, color="green", label="emission")
-axs.plot(idx, fluorophore.spectra.excitation, color="blue", label="excitation")
+axs.plot(idx, normalized_excitation, color="blue", label="excitation")
 axs.fill_between(idx, fluorophore.spectra.emission, color="green", alpha=0.3)
-axs.fill_between(idx, fluorophore.spectra.excitation, color="blue", alpha=0.3)
+axs.fill_between(idx, normalized_excitation, color="blue", alpha=0.3)
 axs.set_xlabel("Wavelength (nm)")
 axs.set_ylabel("")
 axs.set_title("Normalized fluorophore spectra")
