@@ -89,7 +89,7 @@ with col2:
     x_vec = [1.0, 1.0, 1.0, 1.0]
     df_x_vec_edited = tab1.experimental_data_editor(pd.DataFrame(x_vec))
     x_vec = np.array(df_x_vec_edited.squeeze())
-    variance = tab1.slider("Variance of concentration", 1, 5, 2)
+    variance = tab1.slider("Electronic Noise Variance", 1, 5, 2)
 
 F = FIM(A, x_vec, q_vec, variance)
 F_inv = np.linalg.inv(F)
