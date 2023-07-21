@@ -130,6 +130,46 @@ def fast_form_A(
     return A
 
 
+
+# more flexible function, allowing the user to expose the sample to multiple wavelengths at once
+def fast_form_A_simultaneous(
+    illumination_wavelengths,  # list of lists with the wavelength of each illumination
+    k,  # list of lists with (photon flux)*(voxel volume) for each illumination wavelength
+    bin_wavelength_range,  # length 2 ordered int tuple with first and last wavelengths detected
+    bin_width,  # int denoting size of each wavelength bin
+    fluorophore_list,  # list of fluorophores in image
+):
+    try:
+        assert len(illumination_wavelengths) == len(k)
+    except:
+        raise ValueError(
+            "arguments 'illumination_wavelengths' and 'k' must be the same length"
+        )
+    
+    N_ex = len(illumination_wavelengths)
+    N_em = (bin_wavelength_range[1] - bin_wavelength_range[0]) // bin_width
+
+    A = np.zeros((N_ex*N_em, len(fluorophore_list)))
+    
+    for i in range(N_ex):
+        try:
+            assert len(illumination_wavelengths[i]) == len(k[i])
+        except:
+            raise ValueError(
+                "arguments 'illumination_wavelengths' and 'k' must be the same length"
+            )
+    
+        for single_wavelength, single_k in zip(illumination_wavelengths[i], k[i]):
+            single_A = fast_form_A(np.array([single_wavelength]), np.array([single_k]),
+                                   bin_wavelength_range, bin_width, fluorophore_list)
+            A[N_em*i : N_em*(i+1), :] += single_A
+    
+    return A
+        
+        
+
+
+
 # rescales the imaging matrix so that the number of photons detected are the same 
 def fast_form_A_from_photons(
         desired_photons,  # float with the desired number of photons from each illumination
