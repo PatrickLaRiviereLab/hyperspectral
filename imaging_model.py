@@ -81,6 +81,8 @@ def fast_form_A(
     bin_wavelength_range,  # length 2 ordered int tuple with first and last wavelengths detected
     bin_width,  # int denoting size of each wavelength bin
     fluorophore_list,  # list of fluorophores in image
+    qe = None  # quantum efficiency array to use in computation of imaging matrix
+               # do not use quantum efficiency both here and in FIM computation: only use it once
 ):
     try:
         assert illumination_wavelengths.size == k.size
@@ -108,6 +110,14 @@ def fast_form_A(
     emission_index = idx % N_em
     k = k[excitation_index]
 
+    qe_is_present = (type(qe) != type(None))
+    if qe_is_present:
+            qe_array = np.array(
+                qe.loc[
+                    bin_wavelength_range[0] : bin_wavelength_range[1] - 1
+                ]
+            )
+
     columns = []
     for fluorophore in fluorophore_list:
         column_excitation = np.array(
@@ -118,7 +128,12 @@ def fast_form_A(
                 bin_wavelength_range[0] : bin_wavelength_range[1] - 1
             ]
         )
-        column_emission = np.trapz(fluorophore_emission_array.reshape(N_em, bin_width))[
+
+        integrand = fluorophore_emission_array
+        if qe_is_present:
+            integrand *= qe_array
+
+        column_emission = np.trapz(integrand.reshape(N_em, bin_width))[
             emission_index
         ]
 
@@ -138,6 +153,8 @@ def fast_form_A_simultaneous(
     bin_wavelength_range,  # length 2 ordered int tuple with first and last wavelengths detected
     bin_width,  # int denoting size of each wavelength bin
     fluorophore_list,  # list of fluorophores in image
+    qe = None  # quantum efficiency array to use in computation of imaging matrix
+               # do not use quantum efficiency both here and in FIM computation: only use it once
 ):
     try:
         assert len(illumination_wavelengths) == len(k)
@@ -161,14 +178,12 @@ def fast_form_A_simultaneous(
     
         for single_wavelength, single_k in zip(illumination_wavelengths[i], k[i]):
             single_A = fast_form_A(np.array([single_wavelength]), np.array([single_k]),
-                                   bin_wavelength_range, bin_width, fluorophore_list)
+                                   bin_wavelength_range, bin_width, fluorophore_list, qe=qe)
             A[N_em*i : N_em*(i+1), :] += single_A
     
     return A
         
         
-
-
 
 # rescales the imaging matrix so that the number of photons detected are the same 
 def fast_form_A_from_photons(
@@ -177,14 +192,82 @@ def fast_form_A_from_photons(
         bin_wavelength_range,  # length 2 ordered int tuple with first and last wavelengths detected
         bin_width,  # int denoting size of each wavelength bin
         fluorophore_list,  # list of fluorophores in image
+        qe = None  # quantum efficiency array to use in computation of imaging matrix
+            # do not use quantum efficiency both here and in FIM computation: only use it once
     ):
     N_ex = illumination_wavelengths.size
     N_em = (bin_wavelength_range[1] - bin_wavelength_range[0]) // bin_width
     A = fast_form_A(illumination_wavelengths, np.ones(illumination_wavelengths.shape),
-                    bin_wavelength_range, bin_width, fluorophore_list)
+                    bin_wavelength_range, bin_width, fluorophore_list, qe=qe)
     row_sums = np.sum(A, axis=1)
     illumination_sums = row_sums.reshape(N_ex, N_em).sum(axis=1)
     k = desired_photons / illumination_sums
     new_A = fast_form_A(illumination_wavelengths, k,
-                    bin_wavelength_range, bin_width, fluorophore_list)
+                    bin_wavelength_range, bin_width, fluorophore_list, qe=qe)
     return new_A
+
+
+
+def form_A_filter_model(
+    illumination_wavelengths,  # list of lists with the wavelength of each illumination
+    k,  # list of lists with (photon flux)*(voxel volume) for each illumination wavelength
+    bins,  # list of pairs of numbers where each pair represents the range for one fiter bin
+    fluorophore_list,  # list of fluorophores in image
+    qe  # quantum efficiency array to use in computation of imaging matrix
+        # do not use quantum efficiency both here and in FIM computation: only use it once
+):
+    try:
+        assert len(illumination_wavelengths) == len(k)
+    except:
+        raise ValueError(
+            "arguments 'illumination_wavelengths' and 'k' must be the same length"
+        )
+    
+    for i in range(len(k)):
+        try:
+            assert len(illumination_wavelengths[i]) == len(k[i])
+        except:
+            raise ValueError(
+                "arguments 'illumination_wavelengths' and 'k' must be the same length"
+            )
+    
+    for bin in bins:
+        try:
+            assert len(bin) == 2
+            start, end = bin
+            assert start < end
+        except:
+            raise ValueError(
+                "wavelength bins must be given as pairs containing the start and end values of the bin"
+            )
+        
+        try:
+            start, end = bin
+            assert start == int(start)
+            assert end == int(end)
+        except:
+            raise ValueError(
+                "start and end values of each wavelength bin must be integers"
+            )
+
+    N_ex = len(illumination_wavelengths)
+    N_em = len(bins)
+    idx = np.arange(N_ex * N_em)
+    excitation_index = idx // N_em
+    emission_index = idx % N_em
+
+    A = np.zeros((N_ex*N_em, len(fluorophore_list)))
+
+    for i in idx:
+        bin = bins[emission_index[i]]
+        current_excitation_wavelengths = illumination_wavelengths[excitation_index[i]]
+        current_k_values = k[excitation_index[i]]
+        for j in range(len(fluorophore_list)):
+            fluorophore = fluorophore_list[j]
+            integrand = fluorophore.spectra.emission.loc[bin[0]:bin[1]] * qe.loc[bin[0]:bin[1]]
+            emission_integral = np.trapz(integrand)
+
+            for wavelength, k_val in zip(current_excitation_wavelengths, current_k_values):
+                A[i,j] += k_val * fluorophore.brightness * fluorophore.spectra.excitation[wavelength] * emission_integral
+
+    return A

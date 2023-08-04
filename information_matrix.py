@@ -45,7 +45,7 @@ def fast_form_q_vec(
 """
 
 
-def FIM(A, x_vec, q_vec, variance):
+def FIM(A, x_vec, variance, q_vec = 1):
     y_vec = q_vec * (A @ x_vec)
     variance_vec = y_vec + variance
     inverse_variance_vec = 1 / variance_vec
